@@ -1,0 +1,27 @@
+{
+  "name": "simple-memo-api-practice",
+  "version": "1.0.0",
+  "description": "このプロジェクトは、Node.js と Express を使い API を構築し、HTML・CSS・JavaScript（axios利用）でページ遷移を行わずにメモの作成・表示・編集・削除を行えるシンプルなメモアプリです。  \r REST API の設計や非同期通信、データベースとのやりとりの基本を学ぶことを目的として制作しました。",
+  "main": "server.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "start": "node server.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Meerkat39/simple-memo-api-practice.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Meerkat39/simple-memo-api-practice/issues"
+  },
+  "homepage": "https://github.com/Meerkat39/simple-memo-api-practice#readme",
+  "dependencies": {
+    "axios": "^1.10.0",
+    "express": "^5.1.0",
+    "mongoose": "^8.15.2",
+    "nodemon": "^3.1.10"
+  }
+}
