@@ -1,0 +1,531 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>改良版メモ帳 - 直感的な編集UX</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.4.0/css/all.min.css">
+    <style>
+        .memo-card {
+            transition: all 0.3s ease;
+        }
+        .memo-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.15);
+        }
+        .inline-edit {
+            background: #f0f9ff;
+            border: 2px solid #3b82f6;
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .modal-overlay {
+            backdrop-filter: blur(4px);
+        }
+        .expand-edit {
+            animation: expandDown 0.3s ease-out;
+        }
+        @keyframes expandDown {
+            from { max-height: 200px; opacity: 0.8; }
+            to { max-height: 400px; opacity: 1; }
+        }
+        .edit-mode-indicator {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            animation: slideIn 0.3s ease-out;
+        }
+        @keyframes slideIn {
+            from { transform: translateX(100%); }
+            to { transform: translateX(0); }
+        }
+    </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+    <!-- ヘッダー -->
+    <header class="bg-white shadow-sm border-b">
+        <div class="max-w-7xl mx-auto px-4 py-4">
+            <div class="flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-800">
+                    <i class="fas fa-sticky-note text-blue-500 mr-2"></i>
+                    改良版メモ帳
+                </h1>
+                <div class="flex items-center space-x-4">
+                    <div class="text-sm text-gray-600">
+                        編集モード: <span id="current-mode" class="font-semibold text-blue-600">インライン</span>
+                    </div>
+                    <select id="edit-mode-selector" class="border border-gray-300 rounded-md px-3 py-1 text-sm">
+                        <option value="inline">インライン編集</option>
+                        <option value="modal">モーダル編集</option>
+                        <option value="expand">展開型編集</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <div class="max-w-7xl mx-auto px-4 py-6">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- 新規メモ作成 -->
+            <div class="lg:col-span-1">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <h2 class="text-lg font-semibold text-gray-800 mb-4">
+                        <i class="fas fa-plus-circle text-green-500 mr-2"></i>
+                        新規メモ作成
+                    </h2>
+                    <form id="memo-form" class="space-y-4">
+                        <div>
+                            <input type="text" id="memo-title" placeholder="タイトルを入力..." 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        </div>
+                        <div>
+                            <textarea id="memo-content" placeholder="メモの内容を入力..." rows="4"
+                                     class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                        </div>
+                        <div>
+                            <input type="text" id="memo-tags" placeholder="タグ（カンマ区切り）" 
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        </div>
+                        <button type="submit" class="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 transition-colors">
+                            <i class="fas fa-save mr-2"></i>保存
+                        </button>
+                    </form>
+                </div>
+
+                <!-- 編集方法の説明 -->
+                <div class="bg-blue-50 rounded-lg p-4 mt-4">
+                    <h3 class="font-semibold text-blue-800 mb-2">📝 編集方法</h3>
+                    <div class="text-sm text-blue-700 space-y-1">
+                        <p><strong>インライン:</strong> タイトルや内容をダブルクリック</p>
+                        <p><strong>モーダル:</strong> 編集ボタンをクリック</p>
+                        <p><strong>展開型:</strong> 編集ボタンでカードが展開</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- メモ一覧 -->
+            <div class="lg:col-span-2">
+                <div class="bg-white rounded-lg shadow-md p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h2 class="text-lg font-semibold text-gray-800">
+                            <i class="fas fa-list text-blue-500 mr-2"></i>
+                            メモ一覧 (<span id="memo-count">0</span>)
+                        </h2>
+                        <input type="text" id="search-input" placeholder="検索..." 
+                               class="px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    </div>
+                    <div id="memo-list" class="space-y-4">
+                        <!-- メモがここに表示されます -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- モーダル編集 -->
+    <div id="edit-modal" class="fixed inset-0 bg-black bg-opacity-50 modal-overlay hidden z-50">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="bg-white rounded-lg shadow-xl max-w-md w-full">
+                <div class="px-6 py-4 border-b">
+                    <h3 class="text-lg font-semibold text-gray-800">
+                        <i class="fas fa-edit text-blue-500 mr-2"></i>
+                        メモを編集
+                    </h3>
+                </div>
+                <div class="px-6 py-4 space-y-4">
+                    <input type="text" id="modal-title" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                    <textarea id="modal-content" rows="4" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"></textarea>
+                    <input type="text" id="modal-tags" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                </div>
+                <div class="px-6 py-4 border-t flex justify-end space-x-3">
+                    <button id="modal-cancel" class="px-4 py-2 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50">
+                        キャンセル
+                    </button>
+                    <button id="modal-save" class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600">
+                        <i class="fas fa-save mr-2"></i>保存
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 編集モードインジケーター -->
+    <div id="edit-indicator" class="edit-mode-indicator hidden">
+        <div class="bg-blue-500 text-white px-3 py-2 rounded-lg shadow-lg text-sm">
+            <i id="indicator-icon" class="fas fa-edit mr-2"></i>
+            <span id="indicator-text">編集中...</span>
+        </div>
+    </div>
+
+    <script>
+        // アプリケーションの状態
+        let memos = JSON.parse(localStorage.getItem('memos')) || [];
+        let editMode = 'inline';
+        let editingId = null;
+
+        // DOM要素の取得
+        const memoForm = document.getElementById('memo-form');
+        const memoList = document.getElementById('memo-list');
+        const searchInput = document.getElementById('search-input');
+        const editModeSelector = document.getElementById('edit-mode-selector');
+        const currentModeSpan = document.getElementById('current-mode');
+        const editModal = document.getElementById('edit-modal');
+        const editIndicator = document.getElementById('edit-indicator');
+
+        // 初期化
+        document.addEventListener('DOMContentLoaded', function() {
+            renderMemos();
+            updateMemoCount();
+        });
+
+        // 新規メモ作成
+        memoForm.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const title = document.getElementById('memo-title').value.trim();
+            const content = document.getElementById('memo-content').value.trim();
+            const tags = document.getElementById('memo-tags').value.trim();
+            
+            if (!title) {
+                alert('タイトルを入力してください');
+                return;
+            }
+
+            const memo = {
+                id: Date.now(),
+                title: title,
+                content: content,
+                tags: tags ? tags.split(',').map(tag => tag.trim()) : [],
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+            };
+
+            memos.unshift(memo);
+            saveMemos();
+            renderMemos();
+            updateMemoCount();
+            memoForm.reset();
+            showToast('メモを作成しました', 'success');
+        });
+
+        // 編集モード切り替え
+        editModeSelector.addEventListener('change', function(e) {
+            editMode = e.target.value;
+            const modeNames = {
+                'inline': 'インライン',
+                'modal': 'モーダル',
+                'expand': '展開型'
+            };
+            currentModeSpan.textContent = modeNames[editMode];
+            renderMemos(); // 再レンダリングして編集ボタンを更新
+        });
+
+        // 検索機能
+        searchInput.addEventListener('input', function(e) {
+            const query = e.target.value.toLowerCase();
+            const filteredMemos = memos.filter(memo => 
+                memo.title.toLowerCase().includes(query) ||
+                memo.content.toLowerCase().includes(query) ||
+                memo.tags.some(tag => tag.toLowerCase().includes(query))
+            );
+            renderMemos(filteredMemos);
+        });
+
+        // メモ一覧の表示
+        function renderMemos(memosToRender = memos) {
+            memoList.innerHTML = '';
+            
+            if (memosToRender.length === 0) {
+                memoList.innerHTML = `
+                    <div class="text-center py-8 text-gray-500">
+                        <i class="fas fa-sticky-note text-4xl mb-4"></i>
+                        <p>メモがありません</p>
+                        <p class="text-sm">左側のフォームから新しいメモを作成してください</p>
+                    </div>
+                `;
+                return;
+            }
+
+            memosToRender.forEach(memo => {
+                const memoElement = createMemoElement(memo);
+                memoList.appendChild(memoElement);
+            });
+        }
+
+        // メモ要素の作成
+        function createMemoElement(memo) {
+            const div = document.createElement('div');
+            div.className = 'memo-card bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-all';
+            div.dataset.id = memo.id;
+
+            const tagsHtml = memo.tags.map(tag => 
+                `<span class="inline-block bg-blue-100 text-blue-800 text-xs px-2 py-1 rounded-full">${tag}</span>`
+            ).join(' ');
+
+            div.innerHTML = `
+                <div class="flex justify-between items-start mb-2">
+                    <h3 class="memo-title font-semibold text-gray-800 cursor-pointer flex-1" 
+                        ${editMode === 'inline' ? 'ondblclick="startInlineEdit(this, \'title\')"' : ''}>
+                        ${memo.title}
+                    </h3>
+                    <div class="flex space-x-2 ml-2">
+                        <button onclick="editMemo(${memo.id})" class="text-blue-500 hover:text-blue-700 transition-colors">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                        <button onclick="deleteMemo(${memo.id})" class="text-red-500 hover:text-red-700 transition-colors">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+                <p class="memo-content text-gray-600 mb-3 cursor-pointer" 
+                   ${editMode === 'inline' ? 'ondblclick="startInlineEdit(this, \'content\')"' : ''}>
+                    ${memo.content || '<span class="text-gray-400">内容なし</span>'}
+                </p>
+                <div class="flex justify-between items-center text-sm text-gray-500">
+                    <div class="memo-tags">
+                        ${tagsHtml}
+                    </div>
+                    <div>
+                        ${new Date(memo.updatedAt).toLocaleDateString('ja-JP')}
+                    </div>
+                </div>
+                <div id="expand-edit-${memo.id}" class="expand-edit-form hidden mt-4 p-4 bg-gray-50 rounded-lg border-t">
+                    <div class="space-y-3">
+                        <input type="text" value="${memo.title}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <textarea rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none">${memo.content}</textarea>
+                        <input type="text" value="${memo.tags.join(', ')}" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm">
+                        <div class="flex justify-end space-x-2">
+                            <button onclick="cancelExpandEdit(${memo.id})" class="px-3 py-1 text-gray-600 border border-gray-300 rounded-md hover:bg-gray-50 text-sm">
+                                キャンセル
+                            </button>
+                            <button onclick="saveExpandEdit(${memo.id})" class="px-3 py-1 bg-blue-500 text-white rounded-md hover:bg-blue-600 text-sm">
+                                <i class="fas fa-save mr-1"></i>保存
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            return div;
+        }
+
+        // インライン編集開始
+        function startInlineEdit(element, type) {
+            if (editMode !== 'inline') return;
+            
+            const memoId = parseInt(element.closest('.memo-card').dataset.id);
+            const memo = memos.find(m => m.id === memoId);
+            
+            const originalText = type === 'title' ? memo.title : memo.content;
+            const originalElement = element.cloneNode(true);
+            
+            if (type === 'title') {
+                element.innerHTML = `<input type="text" class="inline-edit w-full" value="${originalText}" onblur="saveInlineEdit(this, ${memoId}, '${type}')" onkeypress="handleInlineKeypress(event, this, ${memoId}, '${type}')">`;
+            } else {
+                element.innerHTML = `<textarea class="inline-edit w-full" rows="3" onblur="saveInlineEdit(this, ${memoId}, '${type}')" onkeypress="handleInlineKeypress(event, this, ${memoId}, '${type}')">${originalText}</textarea>`;
+            }
+            
+            const input = element.querySelector('input, textarea');
+            input.focus();
+            input.select();
+            
+            showEditIndicator('インライン編集中...');
+        }
+
+        // インライン編集のキーイベント
+        function handleInlineKeypress(event, element, memoId, type) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                saveInlineEdit(element, memoId, type);
+            } else if (event.key === 'Escape') {
+                cancelInlineEdit(element, memoId, type);
+            }
+        }
+
+        // インライン編集保存
+        function saveInlineEdit(element, memoId, type) {
+            const newValue = element.value.trim();
+            const memo = memos.find(m => m.id === memoId);
+            
+            if (type === 'title' && !newValue) {
+                alert('タイトルは必須です');
+                element.focus();
+                return;
+            }
+            
+            memo[type] = newValue;
+            memo.updatedAt = new Date().toISOString();
+            
+            saveMemos();
+            renderMemos();
+            hideEditIndicator();
+            showToast('メモを更新しました', 'success');
+        }
+
+        // メモ編集（モーダル・展開型）
+        function editMemo(id) {
+            const memo = memos.find(m => m.id === id);
+            
+            if (editMode === 'modal') {
+                openEditModal(memo);
+            } else if (editMode === 'expand') {
+                openExpandEdit(id);
+            }
+        }
+
+        // モーダル編集を開く
+        function openEditModal(memo) {
+            document.getElementById('modal-title').value = memo.title;
+            document.getElementById('modal-content').value = memo.content;
+            document.getElementById('modal-tags').value = memo.tags.join(', ');
+            editModal.classList.remove('hidden');
+            editingId = memo.id;
+            showEditIndicator('モーダル編集中...');
+        }
+
+        // 展開型編集を開く
+        function openExpandEdit(id) {
+            const expandForm = document.getElementById(`expand-edit-${id}`);
+            expandForm.classList.remove('hidden');
+            expandForm.classList.add('expand-edit');
+            editingId = id;
+            showEditIndicator('展開型編集中...');
+        }
+
+        // 展開型編集をキャンセル
+        function cancelExpandEdit(id) {
+            const expandForm = document.getElementById(`expand-edit-${id}`);
+            expandForm.classList.add('hidden');
+            editingId = null;
+            hideEditIndicator();
+        }
+
+        // 展開型編集を保存
+        function saveExpandEdit(id) {
+            const expandForm = document.getElementById(`expand-edit-${id}`);
+            const inputs = expandForm.querySelectorAll('input, textarea');
+            const [title, content, tags] = inputs;
+            
+            if (!title.value.trim()) {
+                alert('タイトルは必須です');
+                return;
+            }
+            
+            const memo = memos.find(m => m.id === id);
+            memo.title = title.value.trim();
+            memo.content = content.value.trim();
+            memo.tags = tags.value.trim() ? tags.value.split(',').map(tag => tag.trim()) : [];
+            memo.updatedAt = new Date().toISOString();
+            
+            saveMemos();
+            renderMemos();
+            hideEditIndicator();
+            showToast('メモを更新しました', 'success');
+        }
+
+        // モーダルイベントリスナー
+        document.getElementById('modal-save').addEventListener('click', function() {
+            const title = document.getElementById('modal-title').value.trim();
+            const content = document.getElementById('modal-content').value.trim();
+            const tags = document.getElementById('modal-tags').value.trim();
+            
+            if (!title) {
+                alert('タイトルは必須です');
+                return;
+            }
+            
+            const memo = memos.find(m => m.id === editingId);
+            memo.title = title;
+            memo.content = content;
+            memo.tags = tags ? tags.split(',').map(tag => tag.trim()) : [];
+            memo.updatedAt = new Date().toISOString();
+            
+            saveMemos();
+            renderMemos();
+            closeEditModal();
+            showToast('メモを更新しました', 'success');
+        });
+
+        document.getElementById('modal-cancel').addEventListener('click', closeEditModal);
+
+        function closeEditModal() {
+            editModal.classList.add('hidden');
+            editingId = null;
+            hideEditIndicator();
+        }
+
+        // メモ削除
+        function deleteMemo(id) {
+            if (confirm('このメモを削除しますか？')) {
+                memos = memos.filter(m => m.id !== id);
+                saveMemos();
+                renderMemos();
+                updateMemoCount();
+                showToast('メモを削除しました', 'info');
+            }
+        }
+
+        // 編集インジケーター表示
+        function showEditIndicator(text) {
+            const indicator = document.getElementById('indicator-text');
+            indicator.textContent = text;
+            editIndicator.classList.remove('hidden');
+        }
+
+        function hideEditIndicator() {
+            editIndicator.classList.add('hidden');
+        }
+
+        // トースト通知
+        function showToast(message, type = 'info') {
+            const colors = {
+                success: 'bg-green-500',
+                info: 'bg-blue-500',
+                warning: 'bg-yellow-500',
+                error: 'bg-red-500'
+            };
+            
+            const toast = document.createElement('div');
+            toast.className = `fixed bottom-4 right-4 ${colors[type]} text-white px-4 py-2 rounded-lg shadow-lg z-50 transform translate-x-full transition-transform`;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full');
+            }, 100);
+            
+            setTimeout(() => {
+                toast.classList.add('translate-x-full');
+                setTimeout(() => {
+                    document.body.removeChild(toast);
+                }, 300);
+            }, 3000);
+        }
+
+        // ユーティリティ関数
+        function saveMemos() {
+            localStorage.setItem('memos', JSON.stringify(memos));
+        }
+
+        function updateMemoCount() {
+            document.getElementById('memo-count').textContent = memos.length;
+        }
+
+        // モーダル外クリックで閉じる
+        editModal.addEventListener('click', function(e) {
+            if (e.target === editModal) {
+                closeEditModal();
+            }
+        });
+
+        // ESCキーでモーダルを閉じる
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Escape' && !editModal.classList.contains('hidden')) {
+                closeEditModal();
+            }
+        });
+    </script>
+</body>
+</html>
