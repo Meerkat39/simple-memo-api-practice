@@ -2,6 +2,7 @@ const express = require("express");
 const mongoose = require("mongoose");
 const Memo = require("./models/memo");
 
+// mongooseの設定
 mongoose
   .connect("mongodb://127.0.0.1:27017/memo", {
     useNewUrlParser: true,
@@ -35,13 +36,17 @@ app.post("/api/memos", async (req, res) => {
 // メモの一覧取得
 // GET  /api/memos
 app.get("/api/memos/:id", async (req, res) => {
-  const memos = await Memo.find({});
-  res.json(memos);
+  const { id } = req.params;
+  const memo = await Memo.findById(id);
+  res.json(memo);
 });
 
 // メモの更新
 app.put("/api/memos/:id", async (req, res) => {
   const { id } = req.params;
+  const { title, content } = req.body;
+  console.log(title, content);
+  await Memo.findByIdAndUpdate(id, { title, content });
 });
 
 // メモの削除
