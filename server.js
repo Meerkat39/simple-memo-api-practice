@@ -28,20 +28,27 @@ app.use(express.static("public"));
 app.post("/api/memos", async (req, res) => {
   const { title, content } = req.body;
   const newMemo = new Memo({ title, content });
-  const createdMemo = await newMemo.save();
-  console.log(createdMemo._id);
+  await newMemo.save();
   res.json(newMemo);
 });
 
 // メモの一覧取得
-// GET  /api/memos
+// GET /api/memos
+app.get("/api/memos", async (req, res) => {
+  const memos = await Memo.find();
+  res.json(memos);
+});
+
+// 特定のメモの取得
+// GET /api/memos/:id
 app.get("/api/memos/:id", async (req, res) => {
   const { id } = req.params;
-  const memo = await Memo.findById(id);
+  const memo = await Memo.findById(id).sort({ createdAt: -1 });
   res.json(memo);
 });
 
 // メモの更新
+// PUT /api/memos/:id
 app.put("/api/memos/:id", async (req, res) => {
   const { id } = req.params;
   const { title, content } = req.body;
@@ -50,6 +57,7 @@ app.put("/api/memos/:id", async (req, res) => {
 });
 
 // メモの削除
+// DELETE /api/memos/:id
 app.delete("/api/memos/:id", async (req, res) => {
   const { id } = req.params;
   await Memo.findByIdAndDelete(id);

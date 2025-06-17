@@ -1,4 +1,3 @@
-// const getButton = document.querySelector("#get-button");
 const createButton = document.querySelector("#create-button");
 const editSaveButton = document.querySelector("#edit-save-button");
 const titleInput = document.querySelector("#title-input");
@@ -9,32 +8,42 @@ const memoTemplate = document.querySelector("#memo-template");
 const memoList = document.querySelector("#memo-list");
 const noMemoMessage = document.querySelector("#no-memo-message");
 
+// 編集中のメモを保存する変数
 let editingMemoId = null;
 let editingMemoItem = null;
 
-// getButton.addEventListener("click", async (event) => {
-//   event.preventDefault();
-
-//   const res = await axios.get("/api/memos");
-//   console.log(res);
-// });
+// 初期読み込み
+window.addEventListener("DOMContentLoaded", async () => {
+  const response = await axios.get("/api/memos");
+  const memos = response.data;
+  for (let memo of memos) {
+    updateMemoList(memo);
+  }
+  updateNoMemoMessage();
+});
 
 // 作成（POST）
 createButton.addEventListener("click", async (event) => {
+  // 「新しいメモを作成」欄からタイトルと内容を取得
   const title = titleInput.value;
   const content = contentInput.value;
+
+  // メモを作成し、メモリストに追加
   const createdMemo = await axios.post("/api/memos", { title, content });
-  console.log(createdMemo.data);
   updateMemoList(createdMemo.data);
+
+  // 「新しいメモを作成」欄の初期化
   titleInput.value = "";
   contentInput.value = "";
 
+  // メモリストの「メモがありません」メッセージの更新
   updateNoMemoMessage();
 });
 
 // 読み取り（GET）
 memoList.addEventListener("click", async (event) => {
   if (event.target.classList.contains("bi-pencil-square")) {
+    // 選択されたメモの取得
     const memoItem = event.target.closest(".memo-item");
     const selectedMemo = await axios.get(`/api/memos/${memoItem.dataset.id}`);
 
@@ -44,9 +53,9 @@ memoList.addEventListener("click", async (event) => {
     editContentInput.value = content;
     memoItem.dataset.id = _id;
 
+    // 編集中のメモの情報の更新
     editingMemoId = _id;
     editingMemoItem = memoItem;
-    console.log("editingMemoId: ", editingMemoId);
 
     // モーダルの表示
     const myModal = new bootstrap.Modal(document.getElementById("memoModal"));
@@ -56,17 +65,19 @@ memoList.addEventListener("click", async (event) => {
 
 // 編集（PUT）
 editSaveButton.addEventListener("click", async (event) => {
+  // メモを更新
   await axios.put(`/api/memos/${editingMemoId}`, {
     title: editTitleInput.value,
     content: editContentInput.value,
   });
 
+  // メモリストに表示されているタイトルと内容の更新
   editingMemoItem.querySelector(".memo-list-title").textContent =
     editTitleInput.value;
   editingMemoItem.querySelector(".memo-list-content").textContent =
     editContentInput.value;
 
-  // editSaveButton.blur();
+  // モーダルの非表示
   const memoModal = document.getElementById("memoModal");
   const bsModal = bootstrap.Modal.getInstance(memoModal);
   bsModal.hide();
@@ -76,10 +87,15 @@ editSaveButton.addEventListener("click", async (event) => {
 memoList.addEventListener("click", async (event) => {
   if (event.target.classList.contains("bi-trash")) {
     const memoItem = event.target.closest(".memo-item");
+
+    // データベース上で削除
     await axios.delete(`/api/memos/${memoItem.dataset.id}`);
+
+    // HTMLファイル上で削除
     memoItem.remove();
   }
 
+  // メモリストの「メモがありません」メッセージの更新
   updateNoMemoMessage();
 });
 
@@ -95,22 +111,16 @@ const createMemo = function (data) {
   memoTitle.textContent = title;
   memoContent.textContent = content;
 
+  // HTMLElementに変換し、idを付与
   const memoItem = clone.querySelector(".memo-item");
   memoItem.dataset.id = _id;
 
   return memoItem;
 };
 
-const updateMemoList = function (title, content) {
-  const newMemo = createMemo(title, content);
-
+const updateMemoList = function (data) {
+  const newMemo = createMemo(data);
   memoList.append(newMemo);
-};
-
-const displayModal = function (data) {
-  const { _id } = data;
-
-  // モーダルの表示
 };
 
 const updateNoMemoMessage = function () {

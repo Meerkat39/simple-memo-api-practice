@@ -18,11 +18,11 @@
         <div class="col-6">
           <div class="card h-100">
             <div class="card-body">
-
-
-              <div id="create-memo">
-                <h2><i class="bi bi-plus-lg text-success"></i>新しいメモを作成</h2>
+              <div class="d-flex align-items-center" id="create-memo">
+                <i class="bi bi-plus-lg text-success fs-1 me-2"></i>
+                <h2 class="m-0">新しいメモを作成</h2>
               </div>
+
 
               <form action="/api/memos" method="POST">
                 <label class="mt-3" for="title">タイトル</label>
@@ -40,13 +40,14 @@
             <div class="card-body">
               <div id="memo-list">
                 <div class="d-flex align-items-center">
-                  <h2><i class="bi bi-list-ul text-info"></i>メモ一覧</h2>
-                  <div class="input-group mb-3 mt-3">
+                  <i class="bi bi-list-ul text-info fs-1 me-2"></i>
+                  <h2 class="m-0">メモ一覧</h2>
+                  <!-- <div class="input-group mb-3 mt-3">
                     <input type="text" class="form-control" placeholder="メモを検索..." aria-label="Recipient's username"
                       aria-describedby="button-addon2">
                     <button class="btn btn-outline-secondary" type="button" id="button-addon2"><i
                         class="bi bi-search"></i></button>
-                  </div>
+                  </div> -->
                 </div>
 
                 <div class="text-center mt-4 text-muted" id="no-memo-message">
