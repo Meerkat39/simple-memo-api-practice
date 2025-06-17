@@ -45,8 +45,8 @@ app.get("/api/memos/:id", async (req, res) => {
 app.put("/api/memos/:id", async (req, res) => {
   const { id } = req.params;
   const { title, content } = req.body;
-  console.log(title, content);
   await Memo.findByIdAndUpdate(id, { title, content });
+  res.status(204).send(); // 成功：204 No Content
 });
 
 // メモの削除
